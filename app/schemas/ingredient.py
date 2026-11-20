@@ -10,6 +10,8 @@ ALLOWED_UNITS: list[str] = [
     "pizca", "lata", "paquete", "sobre",
 ]
 
+MAX_INGREDIENTS_PER_USER: int = 100
+
 
 class IngredientBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)

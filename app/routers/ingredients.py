@@ -1,11 +1,11 @@
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.deps import CurrentUser, DbSession
 from app.models.ingredient import Ingredient
-from app.schemas.ingredient import IngredientCreate, IngredientOut, IngredientUpdate
+from app.schemas.ingredient import IngredientCreate, IngredientOut, IngredientUpdate, MAX_INGREDIENTS_PER_USER
 
 router = APIRouter(prefix="/api/ingredients", tags=["ingredientes"])
 
@@ -37,6 +37,13 @@ def list_ingredients(
 
 @router.post("", response_model=IngredientOut, status_code=status.HTTP_201_CREATED)
 def create_ingredient(data: IngredientCreate, db: DbSession, user: CurrentUser):
+    # Límite máximo de ingredientes por usuario
+    total = db.scalar(select(func.count()).where(Ingredient.user_id == user.id))
+    if total >= MAX_INGREDIENTS_PER_USER:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"No puedes tener más de {MAX_INGREDIENTS_PER_USER} ingredientes en el inventario",
+        )
     # Fusión de duplicados: si ya existe un ingrediente con mismo nombre y unidad,
     # se suma la cantidad en lugar de crear uno nuevo.
     normalized_name = data.name.strip().lower()
