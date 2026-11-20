@@ -96,7 +96,7 @@ Valores fuera de rango devuelven `422`. En el dashboard estas opciones aparecen 
 |---|---|---|
 | `LLM_API_KEY` | (vacío) | Clave del proveedor; sin ella `/generate` responde `502` |
 | `LLM_BASE_URL` | `https://openrouter.ai/api/v1` | Cualquier API compatible con `/chat/completions` (OpenRouter, Groq, Together AI) |
-| `LLM_MODEL` | `meta-llama/llama-3.3-70b-instruct:free` | Modelo a usar |
+| `LLM_MODEL` | `nvidia/nemotron-3.5-super-vl:free` | Modelo a usar. Los modelos `:free` de OpenRouter cambian con el tiempo: si `/generate` responde que el modelo no está disponible, elige otro gratis que soporte `response_format` en openrouter.ai/models |
 | `LLM_TIMEOUT_SECONDS` | `45` | Tiempo máximo de espera por llamada |
 | `LLM_MAX_RETRIES` | `2` | Reintentos extra ante respuestas inválidas |
 
