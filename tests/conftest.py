@@ -1,6 +1,6 @@
 import os
 
-# Variables mínimas ANTES de importar la app (no se usan credenciales reales en pruebas).
+# Variables mínimas ANTES de importar la app (no se usamos credenciales reales en pruebas).
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("SECRET_KEY", "clave-solo-para-pruebas")
 
@@ -12,6 +12,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
+from app.rate_limit import login_limiter  # noqa: E402
 
 USER = {"email": "ana@example.com", "full_name": "Ana", "password": "secreto123"}
 
@@ -30,6 +31,7 @@ def client():
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    login_limiter.clear()
     yield TestClient(app)
     app.dependency_overrides.clear()
     Base.metadata.drop_all(engine)
