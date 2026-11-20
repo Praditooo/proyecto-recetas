@@ -57,3 +57,43 @@ def test_update_name_requires_auth(client):
 def test_update_name_rejects_blank(client, auth_headers):
     res = client.patch("/api/auth/me", json={"full_name": "   "}, headers=auth_headers)
     assert res.status_code == 422
+
+def test_change_password(client, auth_headers):
+    res = client.post(
+        "/api/auth/change-password",
+        json={"current_password": USER["password"], "new_password": "nueva-clave1"},
+        headers=auth_headers,
+    )
+    assert res.status_code == 204
+
+    old = client.post("/api/auth/login", data={"username": USER["email"], "password": USER["password"]})
+    assert old.status_code == 401
+    new = client.post("/api/auth/login", data={"username": USER["email"], "password": "nueva-clave1"})
+    assert new.status_code == 200
+
+
+def test_change_password_wrong_current(client, auth_headers):
+    res = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "incorrecta1", "new_password": "nueva-clave1"},
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+
+
+def test_change_password_must_differ(client, auth_headers):
+    res = client.post(
+        "/api/auth/change-password",
+        json={"current_password": USER["password"], "new_password": USER["password"]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+
+
+def test_change_password_rejects_weak_new(client, auth_headers):
+    res = client.post(
+        "/api/auth/change-password",
+        json={"current_password": USER["password"], "new_password": "sololetras"},
+        headers=auth_headers,
+    )
+    assert res.status_code == 422
