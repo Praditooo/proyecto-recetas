@@ -149,3 +149,21 @@ def test_max_ingredients_limit(client, auth_headers):
     )
     assert over_limit.status_code == 400
     assert "100" in over_limit.json()["detail"]
+
+
+def test_get_ingredient_by_id(client, auth_headers):
+    """El endpoint GET /api/ingredients/{id} devuelve el ingrediente correcto."""
+    res = client.post(
+        "/api/ingredients", json={"name": "Sal", "quantity": 500, "unit": "g"}, headers=auth_headers
+    )
+    assert res.status_code == 201
+    ingredient_id = res.json()["id"]
+
+    detail = client.get(f"/api/ingredients/{ingredient_id}", headers=auth_headers)
+    assert detail.status_code == 200
+    assert detail.json()["name"] == "Sal"
+    assert detail.json()["quantity"] == 500
+    assert detail.json()["unit"] == "g"
+
+    # ID inexistente devuelve 404
+    assert client.get("/api/ingredients/99999", headers=auth_headers).status_code == 404
