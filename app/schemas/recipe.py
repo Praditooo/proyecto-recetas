@@ -53,6 +53,8 @@ class GenerateOptions(BaseModel):
     """Preferencias opcionales que el usuario elige al generar una receta."""
 
     diet: Diet | None = None
+    max_minutes: int | None = Field(default=None, ge=5, le=1440)
+    servings: int | None = Field(default=None, ge=1, le=20)
 
 
 class RatingCreate(BaseModel):

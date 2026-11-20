@@ -63,7 +63,21 @@ def _preference_lines(options: GenerateOptions | None) -> list[str]:
     lines = []
     if options.diet:
         lines.append(f"- La receta debe ser {options.diet}.")
+    if options.max_minutes:
+        lines.append(f"- El tiempo total no debe superar {options.max_minutes} minutos.")
+    if options.servings:
+        porciones = "porción" if options.servings == 1 else "porciones"
+        lines.append(f"- Las cantidades deben alcanzar para {options.servings} {porciones}.")
     return lines
+
+
+def check_options(recipe: RecipeContent, options: GenerateOptions | None) -> RecipeContent:
+    """Verifica que la receta respete las preferencias que sí se pueden comprobar."""
+    if options and options.max_minutes and recipe.estimated_minutes > options.max_minutes:
+        raise LLMResponseError(
+            f"La receta tarda {recipe.estimated_minutes} min y el máximo es {options.max_minutes}"
+        )
+    return recipe
 
 
 def build_messages(
@@ -152,7 +166,7 @@ async def generate_recipe(
         for _ in range(attempts):
             try:
                 content = await request_completion(client, url, payload, headers)
-                return parse_recipe_response(content)
+                return check_options(parse_recipe_response(content), options)
             except LLMResponseError as exc:
                 last_error = exc
     raise last_error
