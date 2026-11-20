@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Recetas con lo que tienes{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">Recetas con lo que tienes</a>
+    {% block nav %}{% endblock %}
+  </header>
+  <main>
+    <p id="msg" class="msg" role="alert"></p>
+    {% block content %}{% endblock %}
+  </main>
+  <script src="/static/js/common.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

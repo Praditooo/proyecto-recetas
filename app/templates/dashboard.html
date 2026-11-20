@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Mi cocina{% endblock %}
+{% block nav %}<button id="logout" class="secondary" type="button">Cerrar sesión</button>{% endblock %}
+{% block content %}
+<section class="grid-2 top">
+  <div class="panel">
+    <h2>Mi inventario</h2>
+    <form id="ingredient-form" class="inline-form">
+      <label>Ingrediente <input type="text" name="name" required maxlength="100"></label>
+      <label>Cantidad <input type="number" name="quantity" required min="0.01" step="any"></label>
+      <label>Unidad <input type="text" name="unit" value="unidad" required maxlength="20"></label>
+      <button type="submit">Agregar ingrediente</button>
+    </form>
+    <ul id="ingredients" class="rows"></ul>
+  </div>
+  <div class="panel">
+    <h2>Nueva receta</h2>
+    <p>Usaremos todo lo que está en tu inventario.</p>
+    <button id="generate" type="button">Generar receta</button>
+  </div>
+</section>
+<h2>Mis recetas</h2>
+<div id="recipes" class="recipes"></div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/inventory.js"></script>
+<script src="/static/js/recipes.js"></script>
+<script>
+  if (!token()) { location.href = "/"; }
+  else {
+    document.getElementById("logout").addEventListener("click", logout);
+    initInventory();
+    initRecipes();
+  }
+</script>
+{% endblock %}

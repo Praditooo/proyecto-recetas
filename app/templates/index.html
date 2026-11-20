@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Cocina con lo que ya tienes en casa</h1>
+<p class="lead">Guarda tu inventario y recibe una receta pensada para esos ingredientes.</p>
+<section class="grid-2">
+  <form id="login-form" class="panel">
+    <h2>Iniciar sesión</h2>
+    <label>Correo <input type="email" name="email" required autocomplete="email"></label>
+    <label>Contraseña <input type="password" name="password" required minlength="8" maxlength="72" autocomplete="current-password"></label>
+    <button type="submit">Iniciar sesión</button>
+  </form>
+  <form id="register-form" class="panel">
+    <h2>Crear cuenta</h2>
+    <label>Nombre <input type="text" name="full_name" required maxlength="120" autocomplete="name"></label>
+    <label>Correo <input type="email" name="email" required autocomplete="email"></label>
+    <label>Contraseña (mínimo 8 caracteres) <input type="password" name="password" required minlength="8" maxlength="72" autocomplete="new-password"></label>
+    <button type="submit">Crear cuenta</button>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}<script>initAuthPage();</script>{% endblock %}
