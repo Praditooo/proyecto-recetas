@@ -1,8 +1,10 @@
+from typing import get_args
+
 from sqlalchemy import event
 
 from app.database import get_db
 from app.main import app
-from app.schemas.recipe import RecipeContent, RecipeIngredient
+from app.schemas.recipe import Difficulty, RecipeContent, RecipeIngredient
 from app.services import llm_service
 
 
@@ -106,3 +108,19 @@ def test_remove_rating(client, auth_headers, monkeypatch):
     # Quitarla otra vez no falla, y una receta inexistente responde 404.
     assert client.delete(f"/api/recipes/{recipe_id}/rating", headers=auth_headers).status_code == 200
     assert client.delete("/api/recipes/9999/rating", headers=auth_headers).status_code == 404
+
+
+def test_recipe_stats(client, auth_headers, monkeypatch):
+    easy, medium, _ = get_args(Difficulty)
+    empty = client.get("/api/recipes/stats", headers=auth_headers).json()
+    assert empty == {"total": 0, "rated": 0, "average_stars": None, "by_difficulty": {}}
+
+    first, second, _ = _seed(
+        client, auth_headers, monkeypatch,
+        [{"difficulty": easy}, {"difficulty": medium}, {"difficulty": easy}],
+    )
+    client.post(f"/api/recipes/{first}/rating", json={"stars": 5}, headers=auth_headers)
+    client.post(f"/api/recipes/{second}/rating", json={"stars": 2}, headers=auth_headers)
+
+    stats = client.get("/api/recipes/stats", headers=auth_headers).json()
+    assert stats == {"total": 3, "rated": 2, "average_stars": 3.5, "by_difficulty": {easy: 2, medium: 1}}

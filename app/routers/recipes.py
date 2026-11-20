@@ -9,6 +9,7 @@ from app.models.ingredient import Ingredient
 from app.models.rating import Rating
 from app.models.recipe import Recipe
 from app.schemas.recipe import Difficulty, GenerateOptions, RatingCreate, RecipeOut
+from app.schemas.stats import RecipeStats
 from app.services import llm_service
 
 router = APIRouter(prefix="/api/recipes", tags=["recetas"])
@@ -112,6 +113,30 @@ def list_recipes(
     stmt = stmt.options(selectinload(Recipe.ratings))
     stmt = stmt.order_by(*order).limit(limit).offset(offset)
     return [_to_out(r, user.id) for r in db.scalars(stmt).all()]
+
+
+# Debe declararse antes de "/{recipe_id}" para que "stats" no se interprete como un id.
+@router.get("/stats", response_model=RecipeStats)
+def recipe_stats(db: DbSession, user: CurrentUser):
+    total = db.scalar(select(func.count(Recipe.id)).where(Recipe.user_id == user.id))
+    rated, average = db.execute(
+        select(func.count(Rating.id), func.avg(Rating.stars))
+        .join(Recipe, Recipe.id == Rating.recipe_id)
+        .where(Rating.user_id == user.id, Recipe.user_id == user.id)
+    ).one()
+    by_difficulty = dict(
+        db.execute(
+            select(Recipe.difficulty, func.count(Recipe.id))
+            .where(Recipe.user_id == user.id)
+            .group_by(Recipe.difficulty)
+        ).all()
+    )
+    return RecipeStats(
+        total=total,
+        rated=rated,
+        average_stars=round(float(average), 2) if average is not None else None,
+        by_difficulty=by_difficulty,
+    )
 
 
 @router.get("/{recipe_id}", response_model=RecipeOut)
