@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Body, HTTPException, Response, status
-from sqlalchemy import select
+from typing import Literal
+
+from fastapi import APIRouter, Body, HTTPException, Query, Response, status
+from sqlalchemy import and_, func, select
 
 from app.deps import CurrentUser, DbSession
 from app.models.ingredient import Ingredient
 from app.models.rating import Rating
 from app.models.recipe import Recipe
-from app.schemas.recipe import GenerateOptions, RatingCreate, RecipeOut
+from app.schemas.recipe import Difficulty, GenerateOptions, RatingCreate, RecipeOut
 from app.services import llm_service
 
 router = APIRouter(prefix="/api/recipes", tags=["recetas"])
@@ -58,9 +60,41 @@ async def generate_recipe(db: DbSession, user: CurrentUser, options: GenerateOpt
     return _to_out(recipe, user.id)
 
 
+def _escape_like(text: str) -> str:
+    """Evita que % y _ escritos por el usuario actúen como comodines en ILIKE."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @router.get("", response_model=list[RecipeOut])
-def list_recipes(db: DbSession, user: CurrentUser):
-    stmt = select(Recipe).where(Recipe.user_id == user.id).order_by(Recipe.created_at.desc(), Recipe.id.desc())
+def list_recipes(
+    db: DbSession,
+    user: CurrentUser,
+    response: Response,
+    q: str | None = Query(None, min_length=1, max_length=100, description="Buscar por nombre del plato"),
+    difficulty: Difficulty | None = Query(None, description="Fácil, Media o Difícil"),
+    min_rating: int | None = Query(None, ge=1, le=5, description="Solo recetas con al menos estas estrellas"),
+    sort: Literal["recent", "rating"] = Query("recent", description="recent: más nuevas primero; rating: mejor calificadas"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Historial del usuario con búsqueda, filtros y paginación.
+
+    El total de recetas que cumplen los filtros (sin paginar) va en la cabecera X-Total-Count.
+    """
+    my_rating = and_(Rating.recipe_id == Recipe.id, Rating.user_id == user.id)
+    stmt = select(Recipe).outerjoin(Rating, my_rating).where(Recipe.user_id == user.id)
+    if q:
+        stmt = stmt.where(Recipe.name.ilike(f"%{_escape_like(q.strip())}%", escape="\\"))
+    if difficulty:
+        stmt = stmt.where(Recipe.difficulty == difficulty)
+    if min_rating:
+        stmt = stmt.where(Rating.stars >= min_rating)
+
+    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    response.headers["X-Total-Count"] = str(total)
+
+    order = [func.coalesce(Rating.stars, 0).desc()] if sort == "rating" else []
+    stmt = stmt.order_by(*order, Recipe.created_at.desc(), Recipe.id.desc()).limit(limit).offset(offset)
     return [_to_out(r, user.id) for r in db.scalars(stmt).all()]
 
 

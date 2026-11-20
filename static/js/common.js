@@ -62,7 +62,8 @@ function formatValidationError(errors) {
     .join(". ");
 }
 
-async function api(path, options = {}) {
+// Hace la petición y lanza un Error con mensaje legible si falla; devuelve la Response.
+async function apiRequest(path, options = {}) {
   const { json, ...rest } = options;
   const headers = { ...(rest.headers || {}) };
   if (token()) headers.Authorization = `Bearer ${token()}`;
@@ -85,7 +86,20 @@ async function api(path, options = {}) {
     } catch (_) { /* respuesta sin JSON */ }
     throw new Error(detail);
   }
+  return res;
+}
+
+async function api(path, options = {}) {
+  const res = await apiRequest(path, options);
   return res.status === 204 ? null : res.json();
+}
+
+// Para listas paginadas: devuelve los elementos y el total de la cabecera X-Total-Count.
+async function apiWithTotal(path, options = {}) {
+  const res = await apiRequest(path, options);
+  const items = await res.json();
+  const header = res.headers.get("X-Total-Count");
+  return { items, total: header === null ? items.length : Number(header) };
 }
 
 function initAuthPage() {

@@ -60,7 +60,7 @@ Las pruebas usan SQLite en memoria y un LLM simulado: no necesitan base de datos
 | GET/POST | `/api/ingredients` | Listar / crear ingredientes |
 | PUT/DELETE | `/api/ingredients/{id}` | Editar / eliminar ingrediente |
 | POST | `/api/recipes/generate` | Generar receta con el inventario actual (preferencias opcionales, ver abajo) |
-| GET | `/api/recipes` · `/api/recipes/{id}` | Historial / detalle |
+| GET | `/api/recipes` · `/api/recipes/{id}` | Historial / detalle. Filtros opcionales: `q` (nombre), `difficulty`, `min_rating` (1-5), `sort` (`recent` o `rating`), `limit` (1-100, por defecto 50) y `offset`. El total sin paginar va en la cabecera `X-Total-Count` |
 | POST | `/api/recipes/{id}/rating` | Calificar de 1 a 5 estrellas |
 | DELETE | `/api/recipes/{id}` | Eliminar del historial |
 
