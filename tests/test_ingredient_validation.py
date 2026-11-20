@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.ingredient import IngredientBase
+from app.schemas.ingredient import ALLOWED_UNITS, IngredientBase
 
 
 def test_valid_ingredient_is_normalized():
@@ -19,3 +19,14 @@ def test_rejects_non_positive_quantity(quantity):
 def test_rejects_blank_name():
     with pytest.raises(ValidationError):
         IngredientBase(name="   ", quantity=1, unit="g")
+
+
+@pytest.mark.parametrize("unit", ALLOWED_UNITS)
+def test_accepts_all_allowed_units(unit):
+    ingredient = IngredientBase(name="test", quantity=1, unit=unit)
+    assert ingredient.unit == unit
+
+
+def test_rejects_invalid_unit():
+    with pytest.raises(ValidationError, match="Unidad no permitida"):
+        IngredientBase(name="arroz", quantity=1, unit="barril")

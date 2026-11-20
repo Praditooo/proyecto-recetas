@@ -3,6 +3,14 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+ALLOWED_UNITS: list[str] = [
+    "unidad", "g", "kg", "mg", "oz", "lb",
+    "ml", "l", "taza", "cucharada", "cucharadita",
+    "litro", "pieza", "rebanada", "diente", "manojo",
+    "pizca", "lata", "paquete", "sobre",
+]
+
+
 class IngredientBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     quantity: float = Field(gt=0, le=100_000)
@@ -22,6 +30,11 @@ class IngredientBase(BaseModel):
         value = " ".join(value.split()).lower()
         if not value:
             raise ValueError("La unidad no puede estar vacía")
+        if value not in ALLOWED_UNITS:
+            raise ValueError(
+                f"Unidad no permitida: '{value}'. "
+                f"Las unidades válidas son: {', '.join(ALLOWED_UNITS)}"
+            )
         return value
 
 
