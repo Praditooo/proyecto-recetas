@@ -80,7 +80,7 @@ def test_timeout_raises_specific_error(fake_provider):
 def test_generate_endpoint_returns_504_on_timeout(client, auth_headers, monkeypatch):
     client.post("/api/ingredients", json={"name": "arroz", "quantity": 500, "unit": "g"}, headers=auth_headers)
 
-    async def timeout(_items):
+    async def timeout(_items, _options=None):
         raise llm_service.LLMTimeoutError("lento")
 
     monkeypatch.setattr(llm_service, "generate_recipe", timeout)

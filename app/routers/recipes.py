@@ -1,11 +1,11 @@
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Body, HTTPException, Response, status
 from sqlalchemy import select
 
 from app.deps import CurrentUser, DbSession
 from app.models.ingredient import Ingredient
 from app.models.rating import Rating
 from app.models.recipe import Recipe
-from app.schemas.recipe import RatingCreate, RecipeOut
+from app.schemas.recipe import GenerateOptions, RatingCreate, RecipeOut
 from app.services import llm_service
 
 router = APIRouter(prefix="/api/recipes", tags=["recetas"])
@@ -25,15 +25,18 @@ def _get_owned(db: DbSession, user: CurrentUser, recipe_id: int) -> Recipe:
 
 
 @router.post("/generate", response_model=RecipeOut, status_code=status.HTTP_201_CREATED)
-async def generate_recipe(db: DbSession, user: CurrentUser):
-    """Genera una receta con el inventario actual del usuario y la guarda en su historial."""
+async def generate_recipe(db: DbSession, user: CurrentUser, options: GenerateOptions | None = Body(None)):
+    """Genera una receta con el inventario actual del usuario y la guarda en su historial.
+
+    El cuerpo es opcional: sin él se genera una receta sin preferencias.
+    """
     ingredients = db.scalars(select(Ingredient).where(Ingredient.user_id == user.id)).all()
     if not ingredients:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Agrega al menos un ingrediente a tu inventario")
 
     items = [{"name": i.name, "quantity": i.quantity, "unit": i.unit} for i in ingredients]
     try:
-        content = await llm_service.generate_recipe(items)
+        content = await llm_service.generate_recipe(items, options)
     except llm_service.LLMTimeoutError as exc:
         raise HTTPException(
             status.HTTP_504_GATEWAY_TIMEOUT, "El generador de recetas tardó demasiado. Intenta de nuevo"

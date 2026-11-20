@@ -46,5 +46,14 @@ class RecipeOut(RecipeContent):
     rating: int | None = None  # calificación del usuario actual
 
 
+Diet = Literal["vegetariana", "vegana", "sin gluten", "sin lactosa"]
+
+
+class GenerateOptions(BaseModel):
+    """Preferencias opcionales que el usuario elige al generar una receta."""
+
+    diet: Diet | None = None
+
+
 class RatingCreate(BaseModel):
     stars: int = Field(ge=1, le=5)

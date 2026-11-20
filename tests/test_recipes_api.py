@@ -19,7 +19,7 @@ def test_generate_requires_inventory(client, auth_headers):
 def test_generate_rate_and_delete_recipe(client, auth_headers, monkeypatch):
     client.post("/api/ingredients", json={"name": "arroz", "quantity": 500, "unit": "g"}, headers=auth_headers)
 
-    async def fake_generate(items):
+    async def fake_generate(items, options=None):
         return _fake_recipe()
 
     monkeypatch.setattr(llm_service, "generate_recipe", fake_generate)
