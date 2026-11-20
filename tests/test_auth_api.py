@@ -1,4 +1,5 @@
 from tests.conftest import USER
+from app.security import create_access_token
 
 
 def test_register_and_login(client):
@@ -20,3 +21,24 @@ def test_wrong_password_returns_401(client):
     client.post("/api/auth/register", json=USER)
     res = client.post("/api/auth/login", data={"username": USER["email"], "password": "incorrecta1"})
     assert res.status_code == 401
+
+def test_me_requires_token(client):
+    assert client.get("/api/auth/me").status_code == 401
+
+
+def test_me_rejects_invalid_token(client):
+    res = client.get("/api/auth/me", headers={"Authorization": "Bearer token-falso"})
+    assert res.status_code == 401
+    assert res.headers["www-authenticate"] == "Bearer"
+
+
+def test_me_rejects_token_of_nonexistent_user(client):
+    token = create_access_token(9999)
+    res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert res.status_code == 401
+
+
+def test_me_returns_current_user(client, auth_headers):
+    res = client.get("/api/auth/me", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.json()["email"] == USER["email"]
