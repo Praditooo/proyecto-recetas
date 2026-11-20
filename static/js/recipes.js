@@ -51,7 +51,12 @@ function renderRecipe(recipe) {
       ),
     ),
     el("footer", { className: "recipe-foot" },
-      renderStars(recipe),
+      el("div", { className: "rating-box" },
+        renderStars(recipe),
+        recipe.rating
+          ? [el("button", { className: "button ghost", type: "button", textContent: "Quitar", title: "Quitar estrellas", onclick: () => removeRating(recipe.id) })]
+          : [],
+      ),
       el("button", {
         className: "icon-button danger", type: "button", title: deleteLabel, ariaLabel: deleteLabel,
         onclick: () => deleteRecipe(recipe),
@@ -157,6 +162,15 @@ function initHistoryFilters() {
 async function rateRecipe(id, stars) {
   try {
     await api(`/recipes/${id}/rating`, { method: "POST", json: { stars } });
+    loadRecipes({ keep: true });
+  } catch (err) {
+    showMsg(err.message);
+  }
+}
+
+async function removeRating(id) {
+  try {
+    await api(`/recipes/${id}/rating`, { method: "DELETE" });
     loadRecipes({ keep: true });
   } catch (err) {
     showMsg(err.message);

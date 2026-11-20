@@ -283,3 +283,5 @@ main { width: 100%; max-width: 78rem; margin: 0 auto; padding: clamp(1rem, 3vw, 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+.rating-box { display: flex; align-items: center; gap: .25rem; }
+.rating-box .button { padding: .25rem .6rem; font-size: .85rem; }
