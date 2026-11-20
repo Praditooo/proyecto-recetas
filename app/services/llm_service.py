@@ -11,7 +11,7 @@ import httpx
 from pydantic import ValidationError
 
 from app.config import get_settings
-from app.schemas.recipe import RecipeContent
+from app.schemas.recipe import GenerateOptions, RecipeContent
 
 
 class LLMServiceError(Exception):
@@ -56,13 +56,43 @@ def _format_quantity(value: float) -> str:
     return f"{value:g}"
 
 
-def build_messages(ingredients: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """Construye los mensajes para el LLM a partir del inventario."""
+def _preference_lines(options: GenerateOptions | None) -> list[str]:
+    """Convierte las opciones elegidas por el usuario en reglas para el prompt."""
+    if options is None:
+        return []
+    lines = []
+    if options.diet:
+        lines.append(f"- La receta debe ser {options.diet}.")
+    if options.max_minutes:
+        lines.append(f"- El tiempo total no debe superar {options.max_minutes} minutos.")
+    if options.servings:
+        porciones = "porción" if options.servings == 1 else "porciones"
+        lines.append(f"- Las cantidades deben alcanzar para {options.servings} {porciones}.")
+    return lines
+
+
+def check_options(recipe: RecipeContent, options: GenerateOptions | None) -> RecipeContent:
+    """Verifica que la receta respete las preferencias que sí se pueden comprobar."""
+    if options and options.max_minutes and recipe.estimated_minutes > options.max_minutes:
+        raise LLMResponseError(
+            f"La receta tarda {recipe.estimated_minutes} min y el máximo es {options.max_minutes}"
+        )
+    return recipe
+
+
+def build_messages(
+    ingredients: list[dict[str, Any]], options: GenerateOptions | None = None
+) -> list[dict[str, str]]:
+    """Construye los mensajes para el LLM a partir del inventario y las preferencias."""
     lines = [
         f"- {_clean_text(i['name'])}: {_format_quantity(i['quantity'])} {_clean_text(i['unit'])}"
         for i in ingredients
     ]
-    user_content = "Inventario disponible:\n" + "\n".join(lines) + "\n\nGenera la receta."
+    user_content = "Inventario disponible:\n" + "\n".join(lines)
+    preferences = _preference_lines(options)
+    if preferences:
+        user_content += "\n\nPreferencias del usuario:\n" + "\n".join(preferences)
+    user_content += "\n\nGenera la receta."
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
@@ -109,7 +139,9 @@ async def request_completion(
         raise LLMResponseError("Estructura de respuesta inesperada del proveedor") from exc
 
 
-async def generate_recipe(ingredients: list[dict[str, Any]]) -> RecipeContent:
+async def generate_recipe(
+    ingredients: list[dict[str, Any]], options: GenerateOptions | None = None
+) -> RecipeContent:
     """Llama al proveedor (API compatible con /chat/completions) y devuelve la receta.
 
     Si el LLM responde con un JSON inválido se reintenta hasta LLM_MAX_RETRIES veces;
@@ -121,7 +153,7 @@ async def generate_recipe(ingredients: list[dict[str, Any]]) -> RecipeContent:
 
     payload = {
         "model": settings.llm_model,
-        "messages": build_messages(ingredients),
+        "messages": build_messages(ingredients, options),
         "temperature": 0.7,
         "response_format": {"type": "json_object"},
     }
@@ -134,7 +166,7 @@ async def generate_recipe(ingredients: list[dict[str, Any]]) -> RecipeContent:
         for _ in range(attempts):
             try:
                 content = await request_completion(client, url, payload, headers)
-                return parse_recipe_response(content)
+                return check_options(parse_recipe_response(content), options)
             except LLMResponseError as exc:
                 last_error = exc
     raise last_error

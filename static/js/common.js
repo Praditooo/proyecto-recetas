@@ -29,6 +29,8 @@ const FIELD_LABELS = {
   name: "El nombre",
   quantity: "La cantidad",
   unit: "La unidad",
+  max_minutes: "El tiempo máximo",
+  servings: "Las porciones",
 };
 
 // Convierte los errores 422 de FastAPI en frases legibles en español.
@@ -45,6 +47,10 @@ function formatValidationError(errors) {
           return `${field} es obligatorio`;
         case "greater_than":
           return `${field} debe ser mayor que ${e.ctx.gt}`;
+        case "greater_than_equal":
+          return `${field} debe ser al menos ${e.ctx.ge}`;
+        case "less_than_equal":
+          return `${field} no puede ser mayor que ${e.ctx.le}`;
         default:
           if (e.type === "value_error" && e.msg.startsWith("Value error, ")) {
             return e.msg.replace("Value error, ", "");

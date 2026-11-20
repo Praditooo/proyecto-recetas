@@ -17,7 +17,20 @@
   <div class="panel">
     <h2>Nueva receta</h2>
     <p>Usaremos todo lo que está en tu inventario.</p>
-    <button id="generate" type="button">Generar receta</button>
+    <form id="generate-form" class="options-form">
+      <label>Dieta
+        <select name="diet">
+          <option value="">Sin preferencia</option>
+          <option value="vegetariana">Vegetariana</option>
+          <option value="vegana">Vegana</option>
+          <option value="sin gluten">Sin gluten</option>
+          <option value="sin lactosa">Sin lactosa</option>
+        </select>
+      </label>
+      <label>Tiempo máximo (min) <input type="number" name="max_minutes" min="5" max="1440" step="1" placeholder="Opcional"></label>
+      <label>Porciones <input type="number" name="servings" min="1" max="20" step="1" placeholder="Opcional"></label>
+      <button id="generate" type="submit">Generar receta</button>
+    </form>
   </div>
 </section>
 <h2>Mis recetas</h2>
