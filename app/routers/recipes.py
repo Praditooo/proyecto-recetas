@@ -43,6 +43,12 @@ async def generate_recipe(db: DbSession, user: CurrentUser, options: GenerateOpt
         raise HTTPException(
             status.HTTP_504_GATEWAY_TIMEOUT, "El generador de recetas tardó demasiado. Intenta de nuevo"
         ) from exc
+    except llm_service.LLMBusyError as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "El generador de recetas está saturado. Intenta de nuevo en un minuto",
+            headers={"Retry-After": "60"},
+        ) from exc
     except llm_service.LLMServiceError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"No se pudo generar la receta: {exc}") from exc
 

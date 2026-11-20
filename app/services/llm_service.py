@@ -26,6 +26,18 @@ class LLMTimeoutError(LLMServiceError):
     """El proveedor LLM no respondió dentro de LLM_TIMEOUT_SECONDS."""
 
 
+class LLMBusyError(LLMServiceError):
+    """El proveedor rechazó la petición por límite de uso (429), común en modelos gratis."""
+
+
+# Mensajes claros para los errores HTTP más comunes del proveedor.
+_STATUS_MESSAGES = {
+    401: "La LLM_API_KEY no es válida o fue revocada",
+    402: "La cuenta del proveedor LLM no tiene créditos para este modelo",
+    404: "El modelo configurado en LLM_MODEL no está disponible en el proveedor",
+}
+
+
 SYSTEM_PROMPT = (
     "Eres un generador de recetas. Recibes un inventario de ingredientes y propones "
     "UNA receta que use principalmente esos ingredientes (puedes asumir agua, sal y aceite). "
@@ -130,6 +142,12 @@ async def request_completion(
         response.raise_for_status()
     except httpx.TimeoutException as exc:
         raise LLMTimeoutError("El proveedor LLM tardó demasiado en responder") from exc
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code
+        if code == 429:
+            raise LLMBusyError("El modelo está saturado en este momento") from exc
+        message = _STATUS_MESSAGES.get(code, "Error de comunicación con el proveedor LLM")
+        raise LLMServiceError(message) from exc
     except httpx.HTTPError as exc:
         raise LLMServiceError("Error de comunicación con el proveedor LLM") from exc
 

@@ -68,6 +68,36 @@ def test_network_errors_are_not_retried(fake_provider):
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize(
+    "code, expected",
+    [(401, "LLM_API_KEY no es válida"), (402, "no tiene créditos"), (404, "LLM_MODEL no está disponible")],
+)
+def test_provider_status_codes_have_clear_messages(fake_provider, code, expected):
+    fake_provider(lambda n: httpx.Response(code))
+    with pytest.raises(llm_service.LLMServiceError, match=expected):
+        asyncio.run(llm_service.generate_recipe(INVENTORY))
+
+
+def test_rate_limit_raises_busy_error_without_retry(fake_provider):
+    calls = fake_provider(lambda n: httpx.Response(429))
+    with pytest.raises(llm_service.LLMBusyError):
+        asyncio.run(llm_service.generate_recipe(INVENTORY))
+    assert len(calls) == 1
+
+
+def test_generate_endpoint_returns_503_when_model_is_busy(client, auth_headers, monkeypatch):
+    client.post("/api/ingredients", json={"name": "arroz", "quantity": 500, "unit": "g"}, headers=auth_headers)
+
+    async def busy(_items, _options=None):
+        raise llm_service.LLMBusyError("saturado")
+
+    monkeypatch.setattr(llm_service, "generate_recipe", busy)
+    res = client.post("/api/recipes/generate", headers=auth_headers)
+    assert res.status_code == 503
+    assert res.headers["Retry-After"] == "60"
+    assert "saturado" in res.json()["detail"]
+
+
 def test_timeout_raises_specific_error(fake_provider):
     def slow(_):
         raise httpx.ReadTimeout("sin respuesta")
