@@ -1,12 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 
 from app.deps import CurrentUser, DbSession
 from app.models.user import User
-from app.schemas.user import Token, UserCreate, UserOut
+from app.schemas.user import AccountDelete, PasswordChange, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["autenticación"])
@@ -40,3 +40,28 @@ def login(form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession):
 @router.get("/me", response_model=UserOut)
 def me(user: CurrentUser):
     return user
+
+@router.patch("/me", response_model=UserOut)
+def update_me(data: UserUpdate, db: DbSession, user: CurrentUser):
+    user.full_name = data.full_name
+    db.commit()
+    db.refresh(user)
+    return user
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(data: PasswordChange, db: DbSession, user: CurrentUser):
+    if not verify_password(data.current_password, user.hashed_password):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual es incorrecta")
+    if data.current_password == data.new_password:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La nueva contraseña debe ser distinta de la actual")
+    user.hashed_password = hash_password(data.new_password)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_me(data: AccountDelete, db: DbSession, user: CurrentUser):
+    if not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña es incorrecta")
+    db.delete(user)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
