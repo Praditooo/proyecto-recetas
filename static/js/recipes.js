@@ -130,8 +130,27 @@ async function loadRecipes({ keep = false } = {}) {
       box.replaceChildren(...items.map(renderRecipe));
     }
     updateHistoryFooter();
+    loadStats();
   } catch (err) {
     showMsg(err.message);
+  }
+}
+
+// Muestra el promedio de estrellas y cuantas recetas estan calificadas.
+async function loadStats() {
+  let box = document.getElementById("recipes-stats");
+  if (!box) {
+    box = el("p", { id: "recipes-stats", className: "history-stats" });
+    document.getElementById("history-filters").after(box);
+  }
+  try {
+    const stats = await api("/recipes/stats");
+    box.textContent = stats.average_stars === null
+      ? ""
+      : `Promedio ${stats.average_stars.toFixed(1)} de 5 estrellas (${stats.rated} de ${stats.total} recetas calificadas)`;
+    box.hidden = !box.textContent;
+  } catch (err) {
+    box.hidden = true;
   }
 }
 
