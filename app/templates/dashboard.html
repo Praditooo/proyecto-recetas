@@ -34,7 +34,36 @@
   </div>
 </section>
 <h2>Mis recetas</h2>
+<form id="history-filters" class="filters-form">
+  <label>Buscar <input type="search" name="q" maxlength="100" placeholder="Nombre del plato"></label>
+  <label>Dificultad
+    <select name="difficulty">
+      <option value="">Todas</option>
+      <option value="Fácil">Fácil</option>
+      <option value="Media">Media</option>
+      <option value="Difícil">Difícil</option>
+    </select>
+  </label>
+  <label>Calificación
+    <select name="min_rating">
+      <option value="">Todas</option>
+      <option value="5">★★★★★</option>
+      <option value="4">★★★★ o más</option>
+      <option value="3">★★★ o más</option>
+      <option value="2">★★ o más</option>
+      <option value="1">★ o más</option>
+    </select>
+  </label>
+  <label>Ordenar por
+    <select name="sort">
+      <option value="recent">Más recientes</option>
+      <option value="rating">Mejor calificadas</option>
+    </select>
+  </label>
+</form>
+<p id="recipes-count" class="meta"></p>
 <div id="recipes" class="recipes"></div>
+<button id="recipes-more" class="secondary" type="button" hidden>Ver más recetas</button>
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/inventory.js"></script>

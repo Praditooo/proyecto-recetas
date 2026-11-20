@@ -24,24 +24,83 @@ function renderRecipe(recipe) {
   );
 }
 
-async function loadRecipes() {
+// Historial: se piden PAGE_SIZE recetas por página según los filtros del formulario.
+const PAGE_SIZE = 12;
+const historyState = { shown: 0, total: 0 };
+
+function historyQuery(offset, limit) {
+  const params = new URLSearchParams();
+  const data = new FormData(document.getElementById("history-filters"));
+  for (const [key, value] of data) {
+    const text = String(value).trim();
+    if (text) params.set(key, text);
+  }
+  params.set("limit", limit);
+  params.set("offset", offset);
+  return params;
+}
+
+function hasActiveFilters() {
+  const params = historyQuery(0, PAGE_SIZE);
+  return ["q", "difficulty", "min_rating"].some((key) => params.has(key));
+}
+
+function updateHistoryFooter() {
+  const count = document.getElementById("recipes-count");
+  count.textContent = historyState.total ? `Mostrando ${historyState.shown} de ${historyState.total} recetas` : "";
+  document.getElementById("recipes-more").hidden = historyState.shown >= historyState.total;
+}
+
+// keep=true recarga la misma cantidad de recetas que ya se veían (tras calificar o eliminar).
+async function loadRecipes({ keep = false } = {}) {
   const box = document.getElementById("recipes");
+  const limit = keep ? Math.min(100, Math.max(PAGE_SIZE, historyState.shown)) : PAGE_SIZE;
   try {
-    const recipes = await api("/recipes");
-    if (!recipes.length) {
-      box.replaceChildren(el("p", { textContent: "Aún no tienes recetas. Genera la primera con tu inventario." }));
-      return;
+    const { items, total } = await apiWithTotal(`/recipes?${historyQuery(0, limit)}`);
+    historyState.shown = items.length;
+    historyState.total = total;
+    if (!items.length) {
+      const text = hasActiveFilters()
+        ? "Ninguna receta coincide con los filtros."
+        : "Aún no tienes recetas. Genera la primera con tu inventario.";
+      box.replaceChildren(el("p", { textContent: text }));
+    } else {
+      box.replaceChildren(...items.map(renderRecipe));
     }
-    box.replaceChildren(...recipes.map(renderRecipe));
+    updateHistoryFooter();
   } catch (err) {
     showMsg(err.message);
   }
 }
 
+async function loadMoreRecipes() {
+  try {
+    const { items, total } = await apiWithTotal(`/recipes?${historyQuery(historyState.shown, PAGE_SIZE)}`);
+    document.getElementById("recipes").append(...items.map(renderRecipe));
+    historyState.shown += items.length;
+    historyState.total = total;
+    updateHistoryFooter();
+  } catch (err) {
+    showMsg(err.message);
+  }
+}
+
+function initHistoryFilters() {
+  const form = document.getElementById("history-filters");
+  let timer;
+  form.addEventListener("submit", (event) => event.preventDefault());
+  form.addEventListener("change", () => loadRecipes());
+  form.elements.q.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => loadRecipes(), 300);
+  });
+  document.getElementById("recipes-more").addEventListener("click", loadMoreRecipes);
+}
+
 async function rateRecipe(id, stars) {
   try {
     await api(`/recipes/${id}/rating`, { method: "POST", json: { stars } });
-    loadRecipes();
+    loadRecipes({ keep: true });
   } catch (err) {
     showMsg(err.message);
   }
@@ -50,7 +109,7 @@ async function rateRecipe(id, stars) {
 async function deleteRecipe(id) {
   try {
     await api(`/recipes/${id}`, { method: "DELETE" });
-    loadRecipes();
+    loadRecipes({ keep: true });
   } catch (err) {
     showMsg(err.message);
   }
@@ -84,5 +143,6 @@ function initRecipes() {
       button.textContent = "Generar receta";
     }
   });
+  initHistoryFilters();
   loadRecipes();
 }

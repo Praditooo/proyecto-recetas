@@ -28,6 +28,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid #86b8a0; outline-
 .inline-form button { grid-column: 1 / -1; justify-self: start; }
 .options-form { display: grid; gap: .25rem .75rem; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); align-items: end; }
 .options-form button { grid-column: 1 / -1; justify-self: start; }
+.filters-form { display: grid; gap: .25rem .75rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); align-items: end; margin-bottom: .5rem; }
+#recipes-more { margin-top: 1.25rem; }
 .rows { list-style: none; margin: 1rem 0 0; padding: 0; }
 .rows li { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .5rem 0; border-top: 1px solid var(--line); }
 .actions { display: flex; gap: .4rem; }
