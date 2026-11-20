@@ -22,6 +22,40 @@ function el(tag, props = {}, ...children) {
   return node;
 }
 
+const FIELD_LABELS = {
+  email: "El correo",
+  password: "La contraseña",
+  full_name: "El nombre",
+  name: "El nombre",
+  quantity: "La cantidad",
+  unit: "La unidad",
+};
+
+// Convierte los errores 422 de FastAPI en frases legibles en español.
+function formatValidationError(errors) {
+  return errors
+    .map((e) => {
+      const field = FIELD_LABELS[e.loc[e.loc.length - 1]] || "Un campo";
+      switch (e.type) {
+        case "string_too_short":
+          return `${field} debe tener al menos ${e.ctx.min_length} caracteres`;
+        case "string_too_long":
+          return `${field} no puede superar ${e.ctx.max_length} caracteres`;
+        case "missing":
+          return `${field} es obligatorio`;
+        case "greater_than":
+          return `${field} debe ser mayor que ${e.ctx.gt}`;
+        default:
+          if (e.type === "value_error" && e.msg.startsWith("Value error, ")) {
+            return e.msg.replace("Value error, ", "");
+          }
+          if (e.loc.includes("email")) return "El correo no es válido";
+          return `${field} no es válido`;
+      }
+    })
+    .join(". ");
+}
+
 async function api(path, options = {}) {
   const { json, ...rest } = options;
   const headers = { ...(rest.headers || {}) };
@@ -39,7 +73,9 @@ async function api(path, options = {}) {
     let detail = res.statusText;
     try {
       const data = await res.json();
-      detail = typeof data.detail === "string" ? data.detail : "Revisa los datos ingresados";
+      if (typeof data.detail === "string") detail = data.detail;
+      else if (Array.isArray(data.detail)) detail = formatValidationError(data.detail);
+      else detail = "Revisa los datos ingresados";
     } catch (_) { /* respuesta sin JSON */ }
     throw new Error(detail);
   }
@@ -57,7 +93,10 @@ function initAuthPage() {
         method: "POST",
         body: new URLSearchParams({ username: form.get("email"), password: form.get("password") }),
       });
-      if (!res.ok) throw new Error("Correo o contraseña incorrectos");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(res.status === 429 && data.detail ? data.detail : "Correo o contraseña incorrectos");
+      }
       localStorage.setItem("token", (await res.json()).access_token);
       location.href = "/dashboard";
     } catch (err) {

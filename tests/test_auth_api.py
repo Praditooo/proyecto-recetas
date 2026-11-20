@@ -97,3 +97,36 @@ def test_change_password_rejects_weak_new(client, auth_headers):
         headers=auth_headers,
     )
     assert res.status_code == 422
+
+def test_delete_account(client, auth_headers):
+    client.post(
+        "/api/ingredients", json={"name": "arroz", "quantity": 1, "unit": "kg"}, headers=auth_headers
+    )
+    res = client.request("DELETE", "/api/auth/me", json={"password": USER["password"]}, headers=auth_headers)
+    assert res.status_code == 204
+
+    # El token viejo ya no sirve y el usuario no puede iniciar sesión
+    assert client.get("/api/auth/me", headers=auth_headers).status_code == 401
+    login = client.post("/api/auth/login", data={"username": USER["email"], "password": USER["password"]})
+    assert login.status_code == 401
+
+    # Si se registra de nuevo, su inventario empieza vacío (se borró en cascada)
+    new_headers = _register_again(client)
+    assert client.get("/api/ingredients", headers=new_headers).json() == []
+
+
+def test_delete_account_wrong_password(client, auth_headers):
+    res = client.request("DELETE", "/api/auth/me", json={"password": "incorrecta1"}, headers=auth_headers)
+    assert res.status_code == 400
+    assert client.get("/api/auth/me", headers=auth_headers).status_code == 200
+
+
+def _register_again(client):
+    client.post("/api/auth/register", json=USER)
+    res = client.post("/api/auth/login", data={"username": USER["email"], "password": USER["password"]})
+    return {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+def test_login_page_has_password_toggle(client):
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "Mostrar contraseña" in res.text

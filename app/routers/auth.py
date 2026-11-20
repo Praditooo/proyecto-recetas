@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 
@@ -8,6 +8,7 @@ from app.deps import CurrentUser, DbSession
 from app.models.user import User
 from app.schemas.user import AccountDelete, PasswordChange, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
+from app.rate_limit import login_limiter
 
 router = APIRouter(prefix="/api/auth", tags=["autenticación"])
 
@@ -25,15 +26,26 @@ def register(data: UserCreate, db: DbSession):
 
 
 @router.post("/login", response_model=Token)
-def login(form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession):
-    # OAuth2PasswordRequestForm usa el campo "username"; aquí contiene el correo.
+def login(request: Request, form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession):
+    # La clave combina correo e IP para no bloquear a otros usuarios de la misma red.
+    client_ip = request.client.host if request.client else "desconocida"
+    key = f"{form.username.lower()}|{client_ip}"
+    if login_limiter.is_blocked(key):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Demasiados intentos fallidos. Intenta de nuevo en unos minutos",
+            headers={"Retry-After": str(login_limiter.retry_after(key))},
+        )
+    # OAuth2PasswordRequestForm usa el campo "username"; aquí guardo el correo.
     user = db.scalar(select(User).where(User.email == form.username.lower()))
     if user is None or not verify_password(form.password, user.hashed_password):
+        login_limiter.register_failure(key)
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Correo o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    login_limiter.reset(key)
     return Token(access_token=create_access_token(user.id))
 
 
