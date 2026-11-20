@@ -8,9 +8,11 @@ const UNITS = [
 
 async function loadIngredients(query) {
   const list = document.getElementById("ingredients");
+  const counter = document.getElementById("ingredients-count");
   try {
     const path = query ? `/ingredients?q=${encodeURIComponent(query)}` : "/ingredients";
     const items = await api(path);
+    if (counter) counter.textContent = items.length ? `${items.length} ingrediente(s)` : "";
     if (!items.length) {
       const msg = query
         ? `No se encontraron ingredientes que coincidan con "${query}".`
