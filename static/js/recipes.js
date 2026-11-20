@@ -56,13 +56,25 @@ async function deleteRecipe(id) {
   }
 }
 
+// Lee las preferencias del formulario; los campos vacíos no se envían.
+function readGenerateOptions(form) {
+  const data = new FormData(form);
+  const options = {};
+  if (data.get("diet")) options.diet = data.get("diet");
+  if (data.get("max_minutes")) options.max_minutes = Number(data.get("max_minutes"));
+  if (data.get("servings")) options.servings = Number(data.get("servings"));
+  return options;
+}
+
 function initRecipes() {
+  const form = document.getElementById("generate-form");
   const button = document.getElementById("generate");
-  button.addEventListener("click", async () => {
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
     button.disabled = true;
     button.textContent = "Generando receta...";
     try {
-      await api("/recipes/generate", { method: "POST" });
+      await api("/recipes/generate", { method: "POST", json: readGenerateOptions(form) });
       showMsg("");
       await loadRecipes();
     } catch (err) {
