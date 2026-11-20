@@ -82,3 +82,27 @@ def test_history_loads_ratings_without_n_plus_one_queries(client, auth_headers, 
     assert with_five == with_two
     ratings = [r["rating"] for r in client.get("/api/recipes", headers=auth_headers).json()]
     assert ratings == [4, 4, 4, 3, 3]
+
+
+def test_history_sorts_oldest_first(client, auth_headers, monkeypatch):
+    first, second, third = _seed(client, auth_headers, monkeypatch, [{}, {}, {}])
+
+    newest = client.get("/api/recipes", headers=auth_headers).json()
+    oldest = client.get("/api/recipes", params={"sort": "oldest"}, headers=auth_headers).json()
+
+    assert [r["id"] for r in newest] == [third, second, first]
+    assert [r["id"] for r in oldest] == [first, second, third]
+
+
+def test_remove_rating(client, auth_headers, monkeypatch):
+    (recipe_id,) = _seed(client, auth_headers, monkeypatch, [{}])
+    client.post(f"/api/recipes/{recipe_id}/rating", json={"stars": 5}, headers=auth_headers)
+
+    removed = client.delete(f"/api/recipes/{recipe_id}/rating", headers=auth_headers)
+    assert removed.status_code == 200
+    assert removed.json()["rating"] is None
+    assert client.get(f"/api/recipes/{recipe_id}", headers=auth_headers).json()["rating"] is None
+
+    # Quitarla otra vez no falla, y una receta inexistente responde 404.
+    assert client.delete(f"/api/recipes/{recipe_id}/rating", headers=auth_headers).status_code == 200
+    assert client.delete("/api/recipes/9999/rating", headers=auth_headers).status_code == 404

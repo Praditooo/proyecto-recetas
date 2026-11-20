@@ -80,7 +80,9 @@ def list_recipes(
     q: str | None = Query(None, min_length=1, max_length=100, description="Buscar por nombre del plato"),
     difficulty: Difficulty | None = Query(None, description="Fácil, Media o Difícil"),
     min_rating: int | None = Query(None, ge=1, le=5, description="Solo recetas con al menos estas estrellas"),
-    sort: Literal["recent", "rating"] = Query("recent", description="recent: más nuevas primero; rating: mejor calificadas"),
+    sort: Literal["recent", "oldest", "rating"] = Query(
+        "recent", description="recent: más nuevas primero; oldest: más antiguas primero; rating: mejor calificadas"
+    ),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
@@ -100,10 +102,15 @@ def list_recipes(
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
     response.headers["X-Total-Count"] = str(total)
 
-    order = [func.coalesce(Rating.stars, 0).desc()] if sort == "rating" else []
+    if sort == "oldest":
+        order = [Recipe.created_at.asc(), Recipe.id.asc()]
+    elif sort == "rating":
+        order = [func.coalesce(Rating.stars, 0).desc(), Recipe.created_at.desc(), Recipe.id.desc()]
+    else:
+        order = [Recipe.created_at.desc(), Recipe.id.desc()]
     # selectinload trae todas las calificaciones en una sola consulta (evita N+1 en _to_out).
     stmt = stmt.options(selectinload(Recipe.ratings))
-    stmt = stmt.order_by(*order, Recipe.created_at.desc(), Recipe.id.desc()).limit(limit).offset(offset)
+    stmt = stmt.order_by(*order).limit(limit).offset(offset)
     return [_to_out(r, user.id) for r in db.scalars(stmt).all()]
 
 
@@ -122,6 +129,18 @@ def rate_recipe(recipe_id: int, data: RatingCreate, db: DbSession, user: Current
         rating.stars = data.stars
     db.commit()
     db.refresh(recipe)
+    return _to_out(recipe, user.id)
+
+
+@router.delete("/{recipe_id}/rating", response_model=RecipeOut)
+def remove_rating(recipe_id: int, db: DbSession, user: CurrentUser):
+    """Quita la calificación del usuario; si no existía, no hace nada."""
+    recipe = _get_owned(db, user, recipe_id)
+    rating = next((r for r in recipe.ratings if r.user_id == user.id), None)
+    if rating is not None:
+        db.delete(rating)
+        db.commit()
+        db.refresh(recipe)
     return _to_out(recipe, user.id)
 
 
