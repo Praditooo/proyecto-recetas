@@ -17,6 +17,11 @@ def _get_owned(db: DbSession, user: CurrentUser, ingredient_id: int) -> Ingredie
     return ingredient
 
 
+@router.get("/{ingredient_id}", response_model=IngredientOut)
+def get_ingredient(ingredient_id: int, db: DbSession, user: CurrentUser):
+    return _get_owned(db, user, ingredient_id)
+
+
 @router.get("", response_model=list[IngredientOut])
 def list_ingredients(
     db: DbSession,
