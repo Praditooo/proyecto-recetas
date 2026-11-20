@@ -82,6 +82,7 @@ function editIngredientInline(item) {
 }
 
 async function deleteIngredient(item) {
+  if (!confirm(`¿Eliminar "${item.name}" del inventario?`)) return;
   try {
     await api(`/ingredients/${item.id}`, { method: "DELETE" });
     loadIngredients();
