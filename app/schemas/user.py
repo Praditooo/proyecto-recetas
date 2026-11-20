@@ -55,6 +55,8 @@ class PasswordChange(BaseModel):
     def new_password_strength(cls, value: str) -> str:
         return check_password_strength(value)
 
+class AccountDelete(BaseModel):
+    password: str = Field(min_length=1, max_length=72)
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

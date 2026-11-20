@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.deps import CurrentUser, DbSession
 from app.models.user import User
-from app.schemas.user import PasswordChange, Token, UserCreate, UserOut, UserUpdate
+from app.schemas.user import AccountDelete, PasswordChange, Token, UserCreate, UserOut, UserUpdate
 from app.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["autenticación"])
@@ -55,5 +55,13 @@ def change_password(data: PasswordChange, db: DbSession, user: CurrentUser):
     if data.current_password == data.new_password:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La nueva contraseña debe ser distinta de la actual")
     user.hashed_password = hash_password(data.new_password)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_me(data: AccountDelete, db: DbSession, user: CurrentUser):
+    if not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña es incorrecta")
+    db.delete(user)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
