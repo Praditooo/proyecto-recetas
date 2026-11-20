@@ -103,3 +103,26 @@ def test_rejects_invalid_unit_via_api(client, auth_headers):
         "/api/ingredients", json={"name": "Agua", "quantity": 1, "unit": "barril"}, headers=auth_headers
     )
     assert res.status_code == 422
+
+
+def test_ingredient_not_accessible_by_other_user(client, auth_headers):
+    """Un ingrediente de un usuario no puede ser visto ni editado por otro usuario."""
+    # Usuario A crea un ingrediente
+    res = client.post(
+        "/api/ingredients", json={"name": "Mantequilla", "quantity": 200, "unit": "g"}, headers=auth_headers
+    )
+    ingredient_id = res.json()["id"]
+
+    # Usuario B se registra y obtiene su token
+    client.post("/api/auth/register", json={"email": "otro@example.com", "full_name": "Otro", "password": "clave1234"})
+    login = client.post("/api/auth/login", data={"username": "otro@example.com", "password": "clave1234"})
+    other_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    # Usuario B intenta acceder al ingrediente de A: debe recibir 404
+    assert client.get(f"/api/ingredients/{ingredient_id}", headers=other_headers).status_code == 404
+    assert client.put(
+        f"/api/ingredients/{ingredient_id}",
+        json={"name": "Mantequilla", "quantity": 50, "unit": "g"},
+        headers=other_headers,
+    ).status_code == 404
+    assert client.delete(f"/api/ingredients/{ingredient_id}", headers=other_headers).status_code == 404
