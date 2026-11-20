@@ -42,3 +42,18 @@ def test_me_returns_current_user(client, auth_headers):
     res = client.get("/api/auth/me", headers=auth_headers)
     assert res.status_code == 200
     assert res.json()["email"] == USER["email"]
+
+def test_update_name(client, auth_headers):
+    res = client.patch("/api/auth/me", json={"full_name": "  Ana   Lucía "}, headers=auth_headers)
+    assert res.status_code == 200
+    assert res.json()["full_name"] == "Ana Lucía"
+    assert client.get("/api/auth/me", headers=auth_headers).json()["full_name"] == "Ana Lucía"
+
+
+def test_update_name_requires_auth(client):
+    assert client.patch("/api/auth/me", json={"full_name": "Ana"}).status_code == 401
+
+
+def test_update_name_rejects_blank(client, auth_headers):
+    res = client.patch("/api/auth/me", json={"full_name": "   "}, headers=auth_headers)
+    assert res.status_code == 422

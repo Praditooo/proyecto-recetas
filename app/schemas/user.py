@@ -29,6 +29,16 @@ class UserCreate(BaseModel):
     def lowercase_email(cls, value: str) -> str:
         return value.lower()
 
+class UserUpdate(BaseModel):
+    full_name: str = Field(min_length=1, max_length=120)
+
+    @field_validator("full_name")
+    @classmethod
+    def normalize_full_name(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("El nombre no puede estar vacío")
+        return value
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
