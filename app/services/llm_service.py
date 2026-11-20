@@ -22,6 +22,10 @@ class LLMResponseError(LLMServiceError):
     """El LLM respondió, pero no con el JSON esperado."""
 
 
+class LLMTimeoutError(LLMServiceError):
+    """El proveedor LLM no respondió dentro de LLM_TIMEOUT_SECONDS."""
+
+
 SYSTEM_PROMPT = (
     "Eres un generador de recetas. Recibes un inventario de ingredientes y propones "
     "UNA receta que use principalmente esos ingredientes (puedes asumir agua, sal y aceite). "
@@ -39,9 +43,25 @@ SYSTEM_PROMPT = (
 )
 
 
+MAX_PROMPT_TEXT = 100
+
+
+def _clean_text(value: Any) -> str:
+    """Deja el texto en una sola línea y recortado: un nombre no puede inyectar líneas nuevas al prompt."""
+    return " ".join(str(value).split())[:MAX_PROMPT_TEXT]
+
+
+def _format_quantity(value: float) -> str:
+    """500.0 -> '500', 0.5 -> '0.5' (más legible para el LLM)."""
+    return f"{value:g}"
+
+
 def build_messages(ingredients: list[dict[str, Any]]) -> list[dict[str, str]]:
     """Construye los mensajes para el LLM a partir del inventario."""
-    lines = [f"- {i['name']}: {i['quantity']} {i['unit']}" for i in ingredients]
+    lines = [
+        f"- {_clean_text(i['name'])}: {_format_quantity(i['quantity'])} {_clean_text(i['unit'])}"
+        for i in ingredients
+    ]
     user_content = "Inventario disponible:\n" + "\n".join(lines) + "\n\nGenera la receta."
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -71,8 +91,30 @@ def parse_recipe_response(raw: str) -> RecipeContent:
         raise LLMResponseError("La respuesta del LLM no cumple el formato esperado") from exc
 
 
+async def request_completion(
+    client: httpx.AsyncClient, url: str, payload: dict[str, Any], headers: dict[str, str]
+) -> str:
+    """Hace una llamada a /chat/completions y devuelve el texto generado."""
+    try:
+        response = await client.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+    except httpx.TimeoutException as exc:
+        raise LLMTimeoutError("El proveedor LLM tardó demasiado en responder") from exc
+    except httpx.HTTPError as exc:
+        raise LLMServiceError("Error de comunicación con el proveedor LLM") from exc
+
+    try:
+        return response.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise LLMResponseError("Estructura de respuesta inesperada del proveedor") from exc
+
+
 async def generate_recipe(ingredients: list[dict[str, Any]]) -> RecipeContent:
-    """Llama al proveedor (API compatible con /chat/completions) y devuelve la receta."""
+    """Llama al proveedor (API compatible con /chat/completions) y devuelve la receta.
+
+    Si el LLM responde con un JSON inválido se reintenta hasta LLM_MAX_RETRIES veces;
+    los errores de comunicación no se reintentan para no alargar la espera del usuario.
+    """
     settings = get_settings()
     if not settings.llm_api_key:
         raise LLMServiceError("LLM_API_KEY no está configurada")
@@ -85,17 +127,14 @@ async def generate_recipe(ingredients: list[dict[str, Any]]) -> RecipeContent:
     }
     headers = {"Authorization": f"Bearer {settings.llm_api_key}"}
     url = f"{settings.llm_base_url.rstrip('/')}/chat/completions"
+    attempts = 1 + max(0, settings.llm_max_retries)
 
-    try:
-        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise LLMServiceError("Error de comunicación con el proveedor LLM") from exc
-
-    try:
-        content = response.json()["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError, ValueError) as exc:
-        raise LLMResponseError("Estructura de respuesta inesperada del proveedor") from exc
-
-    return parse_recipe_response(content)
+    last_error: LLMResponseError | None = None
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        for _ in range(attempts):
+            try:
+                content = await request_completion(client, url, payload, headers)
+                return parse_recipe_response(content)
+            except LLMResponseError as exc:
+                last_error = exc
+    raise last_error
