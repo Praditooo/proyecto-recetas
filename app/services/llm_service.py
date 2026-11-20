@@ -43,9 +43,25 @@ SYSTEM_PROMPT = (
 )
 
 
+MAX_PROMPT_TEXT = 100
+
+
+def _clean_text(value: Any) -> str:
+    """Deja el texto en una sola línea y recortado: un nombre no puede inyectar líneas nuevas al prompt."""
+    return " ".join(str(value).split())[:MAX_PROMPT_TEXT]
+
+
+def _format_quantity(value: float) -> str:
+    """500.0 -> '500', 0.5 -> '0.5' (más legible para el LLM)."""
+    return f"{value:g}"
+
+
 def build_messages(ingredients: list[dict[str, Any]]) -> list[dict[str, str]]:
     """Construye los mensajes para el LLM a partir del inventario."""
-    lines = [f"- {i['name']}: {i['quantity']} {i['unit']}" for i in ingredients]
+    lines = [
+        f"- {_clean_text(i['name'])}: {_format_quantity(i['quantity'])} {_clean_text(i['unit'])}"
+        for i in ingredients
+    ]
     user_content = "Inventario disponible:\n" + "\n".join(lines) + "\n\nGenera la receta."
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
