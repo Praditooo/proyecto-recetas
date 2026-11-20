@@ -18,7 +18,7 @@ proyecto-recetas/
 │   ├── services/llm_service.py
 │   └── templates/           # Jinja2: base, index (acceso), dashboard
 ├── static/                  # favicon.ico, style.css, js/ (common, inventory, recipes)
-├── tests/                   # pytest (16 funciones de prueba)
+├── tests/                   # pytest (72 funciones de prueba)
 ├── Dockerfile · docker-compose.yml · Caddyfile
 ├── .env.example · pytest.ini · requirements.txt
 ```
@@ -59,10 +59,46 @@ Las pruebas usan SQLite en memoria y un LLM simulado: no necesitan base de datos
 | GET | `/api/auth/me` | Usuario actual |
 | GET/POST | `/api/ingredients` | Listar / crear ingredientes |
 | PUT/DELETE | `/api/ingredients/{id}` | Editar / eliminar ingrediente |
-| POST | `/api/recipes/generate` | Generar receta con el inventario actual |
+| POST | `/api/recipes/generate` | Generar receta con el inventario actual (preferencias opcionales, ver abajo) |
 | GET | `/api/recipes` · `/api/recipes/{id}` | Historial / detalle |
 | POST | `/api/recipes/{id}/rating` | Calificar de 1 a 5 estrellas |
 | DELETE | `/api/recipes/{id}` | Eliminar del historial |
+
+## Generación de recetas con el LLM
+
+El endpoint `POST /api/recipes/generate` toma el inventario del usuario autenticado, arma el prompt en `llm_service.build_messages` y llama al proveedor configurado. La respuesta se valida contra `RecipeContent` antes de guardarse.
+
+### Preferencias opcionales
+
+El cuerpo es opcional. Sin él (o con `{}`) se genera una receta sin restricciones.
+
+```json
+{ "diet": "vegana", "max_minutes": 30, "servings": 2 }
+```
+
+| Campo | Valores | Efecto |
+|---|---|---|
+| `diet` | `vegetariana`, `vegana`, `sin gluten`, `sin lactosa` | Se agrega como regla al prompt |
+| `max_minutes` | 5 a 1440 | Regla en el prompt; si la receta lo supera, se reintenta |
+| `servings` | 1 a 20 | Las cantidades se ajustan a ese número de porciones |
+
+Valores fuera de rango devuelven `422`. En el dashboard estas opciones aparecen en el panel **Nueva receta**.
+
+### Robustez
+
+- **Reintentos:** si el LLM devuelve un JSON inválido, una receta con pasos vacíos o ingredientes repetidos, o una que supera `max_minutes`, se vuelve a pedir hasta `LLM_MAX_RETRIES` veces (por defecto 2). Los errores de red no se reintentan.
+- **Errores:** si el proveedor no responde en `LLM_TIMEOUT_SECONDS`, la API responde `504`; cualquier otro fallo del proveedor responde `502`.
+- **Prompt seguro:** cada ingrediente se escribe en una sola línea y con máximo 100 caracteres, y el prompt de sistema indica tratar los nombres como datos, nunca como instrucciones.
+
+### Variables del LLM (`.env`)
+
+| Variable | Por defecto | Descripción |
+|---|---|---|
+| `LLM_API_KEY` | (vacío) | Clave del proveedor; sin ella `/generate` responde `502` |
+| `LLM_BASE_URL` | `https://openrouter.ai/api/v1` | Cualquier API compatible con `/chat/completions` (OpenRouter, Groq, Together AI) |
+| `LLM_MODEL` | `meta-llama/llama-3.3-70b-instruct:free` | Modelo a usar |
+| `LLM_TIMEOUT_SECONDS` | `45` | Tiempo máximo de espera por llamada |
+| `LLM_MAX_RETRIES` | `2` | Reintentos extra ante respuestas inválidas |
 
 ## Despliegue en un VPS con dominio y HTTPS
 
