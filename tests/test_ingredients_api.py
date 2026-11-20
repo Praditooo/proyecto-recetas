@@ -126,3 +126,26 @@ def test_ingredient_not_accessible_by_other_user(client, auth_headers):
         headers=other_headers,
     ).status_code == 404
     assert client.delete(f"/api/ingredients/{ingredient_id}", headers=other_headers).status_code == 404
+
+
+def test_max_ingredients_limit(client, auth_headers):
+    """No se pueden agregar más de MAX_INGREDIENTS_PER_USER ingredientes distintos."""
+    from app.schemas.ingredient import MAX_INGREDIENTS_PER_USER
+
+    # Crear ingredientes hasta el límite
+    for i in range(MAX_INGREDIENTS_PER_USER):
+        res = client.post(
+            "/api/ingredients",
+            json={"name": f"ingrediente_{i}", "quantity": 1, "unit": "unidad"},
+            headers=auth_headers,
+        )
+        assert res.status_code == 201
+
+    # El siguiente debe ser rechazado
+    over_limit = client.post(
+        "/api/ingredients",
+        json={"name": "ingrediente_extra", "quantity": 1, "unit": "unidad"},
+        headers=auth_headers,
+    )
+    assert over_limit.status_code == 400
+    assert "100" in over_limit.json()["detail"]
