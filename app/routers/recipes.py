@@ -2,6 +2,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Body, HTTPException, Query, Response, status
 from sqlalchemy import and_, func, select
+from sqlalchemy.orm import selectinload
 
 from app.deps import CurrentUser, DbSession
 from app.models.ingredient import Ingredient
@@ -100,6 +101,8 @@ def list_recipes(
     response.headers["X-Total-Count"] = str(total)
 
     order = [func.coalesce(Rating.stars, 0).desc()] if sort == "rating" else []
+    # selectinload trae todas las calificaciones en una sola consulta (evita N+1 en _to_out).
+    stmt = stmt.options(selectinload(Recipe.ratings))
     stmt = stmt.order_by(*order, Recipe.created_at.desc(), Recipe.id.desc()).limit(limit).offset(offset)
     return [_to_out(r, user.id) for r in db.scalars(stmt).all()]
 
