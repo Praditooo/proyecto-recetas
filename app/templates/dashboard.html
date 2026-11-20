@@ -1,24 +1,47 @@
 {% extends "base.html" %}
-{% block title %}Mi cocina{% endblock %}
-{% block nav %}<button id="logout" class="secondary" type="button">Cerrar sesión</button>{% endblock %}
+{% block title %}Mi cocina · Recetas con lo que tienes{% endblock %}
+{% block nav %}
+<div class="nav-user">
+  <span id="user-name" class="user-name"></span>
+  <button id="logout" class="button ghost" type="button">
+    <svg class="icon" aria-hidden="true"><use href="#i-logout"></use></svg>
+    <span>Cerrar sesión</span>
+  </button>
+</div>
+{% endblock %}
+{% block main_class %}app{% endblock %}
 {% block content %}
-<section class="grid-2 top">
-  <div class="panel">
-    <h2>Mi inventario</h2>
-    <form id="ingredient-form" class="inline-form">
-      <label>Ingrediente <input type="text" name="name" required maxlength="100" placeholder="ej. Tomate, Arroz, Leche"></label>
-      <label>Cantidad <input type="number" name="quantity" required min="0.01" step="any" placeholder="ej. 500"></label>
-      <label>Unidad <input type="text" name="unit" value="unidad" required maxlength="20"></label>
-      <button type="submit">Agregar ingrediente</button>
-    </form>
-    <label>Buscar ingrediente <input type="text" id="ingredient-search" placeholder="Escribe para buscar..." maxlength="100"></label>
-    <p id="ingredients-count" class="meta"></p>
-    <ul id="ingredients" class="rows"></ul>
-  </div>
-  <div class="panel">
-    <h2>Nueva receta</h2>
-    <p>Usaremos todo lo que está en tu inventario.</p>
-    <form id="generate-form" class="options-form">
+<aside class="panel inventory" aria-labelledby="inventory-title">
+  <header class="panel-head">
+    <h2 id="inventory-title">Mi inventario</h2>
+    <p id="ingredients-count" class="count"></p>
+  </header>
+
+  <form id="ingredient-form" class="ingredient-form">
+    <label class="field-name">Ingrediente <input type="text" name="name" required maxlength="100" placeholder="ej. Tomate, Arroz, Leche"></label>
+    <label>Cantidad <input type="number" name="quantity" required min="0.01" step="any" placeholder="ej. 500"></label>
+    <label>Unidad <input type="text" name="unit" value="unidad" required maxlength="20"></label>
+    <button class="button primary" type="submit">
+      <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+      <span>Agregar</span>
+    </button>
+  </form>
+
+  <label class="search">
+    <span class="visually-hidden">Buscar ingrediente</span>
+    <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+    <input type="search" id="ingredient-search" placeholder="Buscar en el inventario" maxlength="100">
+  </label>
+  <ul id="ingredients" class="ingredient-list"></ul>
+</aside>
+
+<div class="workspace">
+  <section class="panel generator" aria-labelledby="generator-title">
+    <div class="generator-intro">
+      <h2 id="generator-title">Nueva receta</h2>
+      <p>Usaremos todo lo que está en tu inventario. Las preferencias son opcionales.</p>
+    </div>
+    <form id="generate-form" class="generator-form">
       <label>Dieta
         <select name="diet">
           <option value="">Sin preferencia</option>
@@ -28,43 +51,55 @@
           <option value="sin lactosa">Sin lactosa</option>
         </select>
       </label>
-      <label>Tiempo máximo (min) <input type="number" name="max_minutes" min="5" max="1440" step="1" placeholder="Opcional"></label>
-      <label>Porciones <input type="number" name="servings" min="1" max="20" step="1" placeholder="Opcional"></label>
-      <button id="generate" type="submit">Generar receta</button>
+      <label>Tiempo máximo <span class="unit-input"><input type="number" name="max_minutes" min="5" max="1440" step="1" placeholder="Sin límite"><span aria-hidden="true">min</span></span></label>
+      <label>Porciones <input type="number" name="servings" min="1" max="20" step="1" placeholder="Las que salgan"></label>
+      <button id="generate" class="button primary large" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#i-spark"></use></svg>
+        <span class="label">Generar receta</span>
+      </button>
     </form>
-  </div>
-</section>
-<h2>Mis recetas</h2>
-<form id="history-filters" class="filters-form">
-  <label>Buscar <input type="search" name="q" maxlength="100" placeholder="Nombre del plato"></label>
-  <label>Dificultad
-    <select name="difficulty">
-      <option value="">Todas</option>
-      <option value="Fácil">Fácil</option>
-      <option value="Media">Media</option>
-      <option value="Difícil">Difícil</option>
-    </select>
-  </label>
-  <label>Calificación
-    <select name="min_rating">
-      <option value="">Todas</option>
-      <option value="5">★★★★★</option>
-      <option value="4">★★★★ o más</option>
-      <option value="3">★★★ o más</option>
-      <option value="2">★★ o más</option>
-      <option value="1">★ o más</option>
-    </select>
-  </label>
-  <label>Ordenar por
-    <select name="sort">
-      <option value="recent">Más recientes</option>
-      <option value="rating">Mejor calificadas</option>
-    </select>
-  </label>
-</form>
-<p id="recipes-count" class="meta"></p>
-<div id="recipes" class="recipes"></div>
-<button id="recipes-more" class="secondary" type="button" hidden>Ver más recetas</button>
+  </section>
+
+  <section class="history" aria-labelledby="history-title">
+    <header class="history-head">
+      <h2 id="history-title">Mis recetas</h2>
+      <p id="recipes-count" class="count"></p>
+    </header>
+    <form id="history-filters" class="filters">
+      <label class="search">
+        <span class="visually-hidden">Buscar receta</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+        <input type="search" name="q" maxlength="100" placeholder="Buscar por nombre del plato">
+      </label>
+      <label><span class="visually-hidden">Dificultad</span>
+        <select name="difficulty">
+          <option value="">Dificultad</option>
+          <option value="Fácil">Fácil</option>
+          <option value="Media">Media</option>
+          <option value="Difícil">Difícil</option>
+        </select>
+      </label>
+      <label><span class="visually-hidden">Calificación</span>
+        <select name="min_rating">
+          <option value="">Calificación</option>
+          <option value="5">5 estrellas</option>
+          <option value="4">4 estrellas o más</option>
+          <option value="3">3 estrellas o más</option>
+          <option value="2">2 estrellas o más</option>
+          <option value="1">1 estrella o más</option>
+        </select>
+      </label>
+      <label><span class="visually-hidden">Ordenar por</span>
+        <select name="sort">
+          <option value="recent">Más recientes</option>
+          <option value="rating">Mejor calificadas</option>
+        </select>
+      </label>
+    </form>
+    <div id="recipes" class="recipes"></div>
+    <button id="recipes-more" class="button secondary more" type="button" hidden>Ver más recetas</button>
+  </section>
+</div>
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/inventory.js"></script>
@@ -73,6 +108,7 @@
   if (!token()) { location.href = "/"; }
   else {
     document.getElementById("logout").addEventListener("click", logout);
+    loadUserName();
     initInventory();
     initRecipes();
   }

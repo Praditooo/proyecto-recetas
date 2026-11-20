@@ -3,10 +3,42 @@ const API = "/api";
 
 const token = () => localStorage.getItem("token");
 
+// Aviso flotante. Los de éxito se ocultan solos; los errores quedan hasta cerrarlos o hasta el siguiente aviso.
+let msgTimer;
 function showMsg(text, ok = false) {
   const msg = document.getElementById("msg");
-  msg.textContent = text;
+  clearTimeout(msgTimer);
+  if (!text) { msg.hidden = true; return; }
+  msg.querySelector(".msg-text").textContent = text;
+  msg.querySelector("use").setAttribute("href", ok ? "#i-check" : "#i-alert");
   msg.className = ok ? "msg ok" : "msg";
+  msg.setAttribute("role", ok ? "status" : "alert");
+  msg.hidden = false;
+  if (ok) msgTimer = setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const close = document.querySelector("#msg .msg-close");
+  if (close) close.addEventListener("click", () => showMsg(""));
+});
+
+// Icono del sprite de base.html: icon("trash") -> <svg class="icon"><use href="#i-trash"></use></svg>
+function icon(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `#i-${name}`);
+  svg.append(use);
+  return svg;
+}
+
+// Muestra el nombre del usuario en la barra superior.
+async function loadUserName() {
+  try {
+    const me = await api("/auth/me");
+    document.getElementById("user-name").textContent = me.full_name;
+  } catch (_) { /* si falla, api() ya maneja la sesión expirada */ }
 }
 
 function logout() {
@@ -102,8 +134,20 @@ async function apiWithTotal(path, options = {}) {
   return { items, total: header === null ? items.length : Number(header) };
 }
 
+// Pestañas Iniciar sesión / Crear cuenta.
+function selectAuthTab(name) {
+  ["login", "register"].forEach((tab) => {
+    const active = tab === name;
+    document.getElementById(`tab-${tab}`).setAttribute("aria-selected", String(active));
+    document.getElementById(`${tab}-form`).hidden = !active;
+  });
+}
+
 function initAuthPage() {
   if (token()) { location.href = "/dashboard"; return; }
+
+  document.getElementById("tab-login").addEventListener("click", () => selectAuthTab("login"));
+  document.getElementById("tab-register").addEventListener("click", () => selectAuthTab("register"));
 
   document.getElementById("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -133,6 +177,10 @@ function initAuthPage() {
         json: { email: form.get("email"), full_name: form.get("full_name"), password: form.get("password") },
       });
       event.target.reset();
+      selectAuthTab("login");
+      const login = document.getElementById("login-form");
+      login.elements.email.value = form.get("email");
+      login.elements.password.focus();
       showMsg("Cuenta creada. Ya puedes iniciar sesión.", true);
     } catch (err) {
       showMsg(err.message);

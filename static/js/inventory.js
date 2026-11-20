@@ -12,40 +12,58 @@ async function loadIngredients(query) {
   try {
     const path = query ? `/ingredients?q=${encodeURIComponent(query)}` : "/ingredients";
     const items = await api(path);
-    if (counter) counter.textContent = items.length ? `${items.length} ingrediente(s)` : "";
+    if (counter) {
+      const noun = items.length === 1 ? "ingrediente" : "ingredientes";
+      counter.textContent = items.length ? `${items.length} ${noun}` : "";
+    }
     if (!items.length) {
-      const msg = query
-        ? `No se encontraron ingredientes que coincidan con "${query}".`
-        : "Tu inventario está vacío. Agrega tu primer ingrediente.";
-      list.replaceChildren(el("li", { textContent: msg }));
+      const empty = query
+        ? el("li", { className: "empty" }, el("span", { textContent: `Nada coincide con "${query}".` }))
+        : el("li", { className: "empty" },
+            icon("basket"),
+            el("strong", { textContent: "Tu inventario está vacío" }),
+            el("span", { textContent: "Agrega lo que tienes en casa para generar recetas." }),
+          );
+      list.replaceChildren(empty);
       return;
     }
-    list.replaceChildren(...items.map((item) =>
-      el("li", {},
-        el("span", { textContent: `${item.name}: ${item.quantity} ${item.unit}` }),
+    list.replaceChildren(...items.map((item) => {
+      const li = el("li", {},
+        el("span", { className: "ingredient-name", textContent: item.name }),
+        el("span", { className: "ingredient-qty", textContent: `${formatQuantity(item.quantity)} ${item.unit}` }),
         el("span", { className: "actions" },
-          el("button", { className: "secondary", type: "button", textContent: "Editar", onclick: () => editIngredientInline(item) }),
-          el("button", { className: "danger", type: "button", textContent: "Eliminar", onclick: () => deleteIngredient(item) }),
+          iconButton("edit", `Editar ${item.name}`, () => editIngredientInline(item)),
+          iconButton("trash", `Eliminar ${item.name}`, () => deleteIngredient(item), "danger"),
         ),
-      ),
-    ));
+      );
+      li.dataset.id = item.id;
+      return li;
+    }));
   } catch (err) {
     showMsg(err.message);
   }
 }
 
-function editIngredientInline(item) {
-  const list = document.getElementById("ingredients");
-  const items = Array.from(list.children);
-  const li = items.find((node) => {
-    const span = node.querySelector("span");
-    return span && span.textContent.startsWith(item.name + ":");
-  });
-  if (!li) return;
+// 500 -> "500", 0.25 -> "0.25", 1.3333333 -> "1.33"
+function formatQuantity(value) {
+  return String(Math.round(value * 100) / 100);
+}
 
-  const nameInput = el("input", { type: "text", value: item.name, maxLength: 100, required: true });
-  const qtyInput = el("input", { type: "number", value: item.quantity, min: "0.01", step: "any", required: true });
+function iconButton(name, label, onclick, variant = "") {
+  return el("button", {
+    className: `icon-button ${variant}`.trim(), type: "button", title: label, ariaLabel: label, onclick,
+  }, icon(name));
+}
+
+function editIngredientInline(item) {
+  const li = document.querySelector(`#ingredients li[data-id="${item.id}"]`);
+  if (!li) return;
+  li.classList.add("editing");
+
+  const nameInput = el("input", { type: "text", value: item.name, maxLength: 100, required: true, ariaLabel: "Nombre" });
+  const qtyInput = el("input", { type: "number", value: item.quantity, min: "0.01", step: "any", required: true, ariaLabel: "Cantidad" });
   const unitSelect = document.createElement("select");
+  unitSelect.setAttribute("aria-label", "Unidad");
   UNITS.forEach((u) => {
     const opt = document.createElement("option");
     opt.value = u;
@@ -55,7 +73,7 @@ function editIngredientInline(item) {
   });
 
   const saveBtn = el("button", {
-    type: "button", textContent: "Guardar",
+    className: "button primary", type: "button", textContent: "Guardar",
     onclick: async () => {
       try {
         await api(`/ingredients/${item.id}`, {
@@ -70,7 +88,7 @@ function editIngredientInline(item) {
     },
   });
   const cancelBtn = el("button", {
-    className: "secondary", type: "button", textContent: "Cancelar",
+    className: "button ghost", type: "button", textContent: "Cancelar",
     onclick: () => loadIngredients(),
   });
 
@@ -78,8 +96,13 @@ function editIngredientInline(item) {
     el("span", { className: "inline-edit" },
       nameInput, qtyInput, unitSelect,
     ),
-    el("span", { className: "actions" }, saveBtn, cancelBtn),
+    el("span", { className: "actions" }, cancelBtn, saveBtn),
   );
+  // Enter guarda y Escape cancela.
+  li.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); saveBtn.click(); }
+    if (event.key === "Escape") loadIngredients();
+  });
   nameInput.focus();
 }
 
@@ -123,6 +146,7 @@ function initInventory() {
       const sel = event.target.elements.unit;
       if (sel) sel.value = "unidad";
       showMsg("");
+      event.target.elements.name.focus();
       loadIngredients();
     } catch (err) {
       showMsg(err.message);

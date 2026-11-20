@@ -1,27 +1,85 @@
 // Recetas: generar, ver historial, calificar y eliminar.
-function renderRecipe(recipe) {
-  const stars = el("div", { className: "stars" },
-    [1, 2, 3, 4, 5].map((n) =>
-      el("button", {
-        className: "star",
-        type: "button",
-        title: `${n} ${n === 1 ? "estrella" : "estrellas"}`,
-        textContent: n <= (recipe.rating || 0) ? "★" : "☆",
+const DIFFICULTY_CLASS = { "Fácil": "d-facil", "Media": "d-media", "Difícil": "d-dificil" };
+
+function formatMinutes(total) {
+  if (total < 60) return `${total} min`;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+function chip(iconName, text, extraClass = "") {
+  return el("span", { className: `chip ${extraClass}`.trim() }, icon(iconName), el("span", { textContent: text }));
+}
+
+function renderStars(recipe) {
+  const current = recipe.rating || 0;
+  return el("div", { className: "stars", role: "group", ariaLabel: current ? `Calificada con ${current} de 5` : "Sin calificar" },
+    [1, 2, 3, 4, 5].map((n) => {
+      const label = `Calificar con ${n} ${n === 1 ? "estrella" : "estrellas"}`;
+      return el("button", {
+        className: `icon-button star${n <= current ? " on" : ""}`,
+        type: "button", title: label, ariaLabel: label, ariaPressed: String(n === current),
         onclick: () => rateRecipe(recipe.id, n),
-      }),
+      }, icon("star"));
+    }),
+  );
+}
+
+function renderRecipe(recipe) {
+  const deleteLabel = `Eliminar ${recipe.name}`;
+  return el("article", { className: "panel recipe" },
+    el("header", { className: "recipe-head" },
+      el("h3", { textContent: recipe.name }),
+      el("div", { className: "chips" },
+        chip("clock", formatMinutes(recipe.estimated_minutes)),
+        chip("gauge", recipe.difficulty, DIFFICULTY_CLASS[recipe.difficulty] || ""),
+      ),
+    ),
+    el("div", { className: "recipe-body" },
+      el("section", {},
+        el("h4", { textContent: "Ingredientes" }),
+        el("ul", { className: "recipe-ingredients" }, recipe.ingredients.map((i) =>
+          el("li", {},
+            el("span", { textContent: i.name }),
+            el("span", { textContent: `${formatQuantity(i.quantity)} ${i.unit}` }),
+          ))),
+      ),
+      el("section", {},
+        el("h4", { textContent: "Preparación" }),
+        el("ol", { className: "recipe-steps" }, recipe.steps.map((step) => el("li", { textContent: step }))),
+      ),
+    ),
+    el("footer", { className: "recipe-foot" },
+      renderStars(recipe),
+      el("button", {
+        className: "icon-button danger", type: "button", title: deleteLabel, ariaLabel: deleteLabel,
+        onclick: () => deleteRecipe(recipe),
+      }, icon("trash")),
     ),
   );
+}
 
-  return el("article", { className: "panel" },
-    el("h3", { textContent: recipe.name }),
-    el("p", { className: "meta", textContent: `${recipe.estimated_minutes} min, dificultad ${recipe.difficulty.toLowerCase()}` }),
-    el("h4", { textContent: "Ingredientes" }),
-    el("ul", {}, recipe.ingredients.map((i) => el("li", { textContent: `${i.name}: ${i.quantity} ${i.unit}` }))),
-    el("h4", { textContent: "Preparación" }),
-    el("ol", {}, recipe.steps.map((step) => el("li", { textContent: step }))),
-    stars,
-    el("button", { className: "danger", type: "button", textContent: "Eliminar receta", onclick: () => deleteRecipe(recipe.id) }),
+function loadingCard() {
+  return el("article", { className: "panel recipe loading", ariaLive: "polite" },
+    el("p", { className: "loading-title" }, el("span", { className: "spinner" }), el("span", { textContent: "Preparando tu receta…" })),
+    el("div", { className: "skeleton w-70" }),
+    el("div", { className: "skeleton w-50" }),
+    el("div", { className: "skeleton w-85" }),
+    el("div", { className: "skeleton w-70" }),
   );
+}
+
+function emptyHistory(filtered) {
+  return filtered
+    ? el("div", { className: "empty" },
+        icon("search"),
+        el("strong", { textContent: "Ninguna receta coincide con los filtros." }),
+        el("span", { textContent: "Prueba con otra búsqueda o quita algún filtro." }))
+    : el("div", { className: "empty" },
+        icon("book"),
+        el("strong", { textContent: "Aún no tienes recetas." }),
+        el("span", { textContent: "Genera la primera con tu inventario." }));
 }
 
 // Historial: se piden PAGE_SIZE recetas por página según los filtros del formulario.
@@ -47,7 +105,9 @@ function hasActiveFilters() {
 
 function updateHistoryFooter() {
   const count = document.getElementById("recipes-count");
-  count.textContent = historyState.total ? `Mostrando ${historyState.shown} de ${historyState.total} recetas` : "";
+  const { shown, total } = historyState;
+  const noun = total === 1 ? "receta" : "recetas";
+  count.textContent = !total ? "" : shown >= total ? `${total} ${noun}` : `Mostrando ${shown} de ${total} recetas`;
   document.getElementById("recipes-more").hidden = historyState.shown >= historyState.total;
 }
 
@@ -60,10 +120,7 @@ async function loadRecipes({ keep = false } = {}) {
     historyState.shown = items.length;
     historyState.total = total;
     if (!items.length) {
-      const text = hasActiveFilters()
-        ? "Ninguna receta coincide con los filtros."
-        : "Aún no tienes recetas. Genera la primera con tu inventario.";
-      box.replaceChildren(el("p", { textContent: text }));
+      box.replaceChildren(emptyHistory(hasActiveFilters()));
     } else {
       box.replaceChildren(...items.map(renderRecipe));
     }
@@ -106,9 +163,11 @@ async function rateRecipe(id, stars) {
   }
 }
 
-async function deleteRecipe(id) {
+async function deleteRecipe(recipe) {
+  if (!confirm(`¿Eliminar "${recipe.name}" de tu historial?`)) return;
   try {
-    await api(`/recipes/${id}`, { method: "DELETE" });
+    await api(`/recipes/${recipe.id}`, { method: "DELETE" });
+    showMsg("Receta eliminada.", true);
     loadRecipes({ keep: true });
   } catch (err) {
     showMsg(err.message);
@@ -128,19 +187,33 @@ function readGenerateOptions(form) {
 function initRecipes() {
   const form = document.getElementById("generate-form");
   const button = document.getElementById("generate");
+  const label = button.querySelector(".label");
+  const buttonIcon = button.querySelector(".icon");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const box = document.getElementById("recipes");
+    const placeholder = loadingCard();
+    const spinner = el("span", { className: "spinner" });
     button.disabled = true;
-    button.textContent = "Generando receta...";
+    buttonIcon.replaceWith(spinner);
+    label.textContent = "Generando…";
+    showMsg("");
+    if (box.querySelector(".empty")) box.replaceChildren();
+    box.prepend(placeholder);
+    placeholder.scrollIntoView({ behavior: "smooth", block: "nearest" });
     try {
       await api("/recipes/generate", { method: "POST", json: readGenerateOptions(form) });
-      showMsg("");
       await loadRecipes();
+      const first = box.querySelector(".recipe");
+      if (first) first.classList.add("fresh");
     } catch (err) {
+      placeholder.remove();
+      if (!box.children.length) box.replaceChildren(emptyHistory(hasActiveFilters()));
       showMsg(err.message);
     } finally {
       button.disabled = false;
-      button.textContent = "Generar receta";
+      spinner.replaceWith(buttonIcon);
+      label.textContent = "Generar receta";
     }
   });
   initHistoryFilters();
