@@ -34,6 +34,10 @@ async def generate_recipe(db: DbSession, user: CurrentUser):
     items = [{"name": i.name, "quantity": i.quantity, "unit": i.unit} for i in ingredients]
     try:
         content = await llm_service.generate_recipe(items)
+    except llm_service.LLMTimeoutError as exc:
+        raise HTTPException(
+            status.HTTP_504_GATEWAY_TIMEOUT, "El generador de recetas tardó demasiado. Intenta de nuevo"
+        ) from exc
     except llm_service.LLMServiceError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"No se pudo generar la receta: {exc}") from exc
 

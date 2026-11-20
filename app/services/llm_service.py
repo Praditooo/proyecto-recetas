@@ -22,6 +22,10 @@ class LLMResponseError(LLMServiceError):
     """El LLM respondió, pero no con el JSON esperado."""
 
 
+class LLMTimeoutError(LLMServiceError):
+    """El proveedor LLM no respondió dentro de LLM_TIMEOUT_SECONDS."""
+
+
 SYSTEM_PROMPT = (
     "Eres un generador de recetas. Recibes un inventario de ingredientes y propones "
     "UNA receta que use principalmente esos ingredientes (puedes asumir agua, sal y aceite). "
@@ -78,6 +82,8 @@ async def request_completion(
     try:
         response = await client.post(url, json=payload, headers=headers)
         response.raise_for_status()
+    except httpx.TimeoutException as exc:
+        raise LLMTimeoutError("El proveedor LLM tardó demasiado en responder") from exc
     except httpx.HTTPError as exc:
         raise LLMServiceError("Error de comunicación con el proveedor LLM") from exc
 
