@@ -51,7 +51,12 @@ function renderRecipe(recipe) {
       ),
     ),
     el("footer", { className: "recipe-foot" },
-      renderStars(recipe),
+      el("div", { className: "rating-box" },
+        renderStars(recipe),
+        recipe.rating
+          ? [el("button", { className: "button ghost", type: "button", textContent: "Quitar", title: "Quitar estrellas", onclick: () => removeRating(recipe.id) })]
+          : [],
+      ),
       el("button", {
         className: "icon-button danger", type: "button", title: deleteLabel, ariaLabel: deleteLabel,
         onclick: () => deleteRecipe(recipe),
@@ -125,8 +130,27 @@ async function loadRecipes({ keep = false } = {}) {
       box.replaceChildren(...items.map(renderRecipe));
     }
     updateHistoryFooter();
+    loadStats();
   } catch (err) {
     showMsg(err.message);
+  }
+}
+
+// Muestra el promedio de estrellas y cuantas recetas estan calificadas.
+async function loadStats() {
+  let box = document.getElementById("recipes-stats");
+  if (!box) {
+    box = el("p", { id: "recipes-stats", className: "history-stats" });
+    document.getElementById("history-filters").after(box);
+  }
+  try {
+    const stats = await api("/recipes/stats");
+    box.textContent = stats.average_stars === null
+      ? ""
+      : `Promedio ${stats.average_stars.toFixed(1)} de 5 estrellas (${stats.rated} de ${stats.total} recetas calificadas)`;
+    box.hidden = !box.textContent;
+  } catch (err) {
+    box.hidden = true;
   }
 }
 
@@ -157,6 +181,15 @@ function initHistoryFilters() {
 async function rateRecipe(id, stars) {
   try {
     await api(`/recipes/${id}/rating`, { method: "POST", json: { stars } });
+    loadRecipes({ keep: true });
+  } catch (err) {
+    showMsg(err.message);
+  }
+}
+
+async function removeRating(id) {
+  try {
+    await api(`/recipes/${id}/rating`, { method: "DELETE" });
     loadRecipes({ keep: true });
   } catch (err) {
     showMsg(err.message);
